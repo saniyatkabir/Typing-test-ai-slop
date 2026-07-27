@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Typing Test — Improve Your Speed &amp; Accuracy</title>
+  <meta name="description" content="A minimal, premium typing speed test. Track your WPM, accuracy, and consistency." />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+  <!-- Ambient background glow -->
+  <div class="bg-glow" aria-hidden="true"></div>
+
+  <div class="app">
+
+    <!-- ============ HEADER ============ -->
+    <header class="site-header">
+      <div class="logo">
+        <span class="logo-mark">⌁</span>
+        <span class="logo-text">typetest</span>
+      </div>
+
+      <div class="time-select" role="group" aria-label="Select test duration">
+        <button class="time-option" data-time="15">15s</button>
+        <button class="time-option is-active" data-time="30">30s</button>
+        <button class="time-option" data-time="60">60s</button>
+        <button class="time-option" data-time="120">120s</button>
+      </div>
+    </header>
+
+    <!-- ============ MAIN ============ -->
+    <main class="main">
+
+      <!-- Hero -->
+      <section class="hero" id="hero">
+        <h1 class="hero-title">Typing Test</h1>
+        <p class="hero-subtitle">Improve your typing speed and accuracy.</p>
+      </section>
+
+      <!-- Live stat strip -->
+      <section class="stat-strip" id="statStrip" aria-live="polite">
+        <div class="stat-pill">
+          <span class="stat-value" id="statTime">30</span>
+          <span class="stat-label">seconds</span>
+        </div>
+        <div class="stat-divider"></div>
+        <div class="stat-pill">
+          <span class="stat-value" id="statWpm">0</span>
+          <span class="stat-label">wpm</span>
+        </div>
+        <div class="stat-divider"></div>
+        <div class="stat-pill">
+          <span class="stat-value" id="statAccuracy">100%</span>
+          <span class="stat-label">accuracy</span>
+        </div>
+        <div class="stat-divider"></div>
+        <div class="stat-pill">
+          <span class="stat-value" id="statMistakes">0</span>
+          <span class="stat-label">mistakes</span>
+        </div>
+      </section>
+
+      <!-- Typing area -->
+      <section class="type-card" id="typeCard">
+        <div class="progress-track" aria-hidden="true">
+          <div class="progress-fill" id="progressFill"></div>
+        </div>
+
+        <div
+          class="words-viewport"
+          id="wordsViewport"
+          tabindex="0"
+          role="textbox"
+          aria-label="Typing area. Start typing to begin the test."
+          aria-multiline="false"
+        >
+          <div class="words-track" id="wordsTrack"></div>
+          <div class="caret" id="caret"></div>
+        </div>
+
+        <div class="focus-overlay" id="focusOverlay">
+          <span>Click here or press any key to focus</span>
+        </div>
+      </section>
+
+      <!-- Controls -->
+      <section class="controls">
+        <button class="btn-restart" id="restartBtn" aria-label="Restart test">
+          <svg class="icon-refresh" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path d="M4 4v6h6M20 20v-6h-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M4.5 15a8 8 0 0 0 14.5 3.5M19.5 9A8 8 0 0 0 5 5.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          <span>Restart</span>
+          <kbd>Tab</kbd>
+        </button>
+      </section>
+
+      <!-- Detailed live stats grid (below the fold, always visible) -->
+      <section class="stats-grid" aria-label="Detailed statistics">
+        <div class="stat-card">
+          <span class="stat-card-label">Characters</span>
+          <span class="stat-card-value" id="gridChars">0</span>
+        </div>
+        <div class="stat-card">
+          <span class="stat-card-label">Correct</span>
+          <span class="stat-card-value success" id="gridCorrect">0</span>
+        </div>
+        <div class="stat-card">
+          <span class="stat-card-label">Incorrect</span>
+          <span class="stat-card-value error" id="gridIncorrect">0</span>
+        </div>
+        <div class="stat-card">
+          <span class="stat-card-label">Words typed</span>
+          <span class="stat-card-value" id="gridWords">0</span>
+        </div>
+        <div class="stat-card">
+          <span class="stat-card-label">Time remaining</span>
+          <span class="stat-card-value" id="gridTime">30s</span>
+        </div>
+      </section>
+
+    </main>
+
+    <!-- ============ RESULTS OVERLAY ============ -->
+    <div class="results-overlay" id="resultsOverlay">
+      <div class="results-card" role="dialog" aria-modal="true" aria-labelledby="resultsTitle">
+        <p class="results-eyebrow">Test complete</p>
+        <h2 class="results-title" id="resultsTitle">Your Results</h2>
+        <p class="results-message" id="resultsMessage">Great job!</p>
+
+        <div class="results-hero-stats">
+          <div class="results-hero-stat">
+            <span class="results-hero-value" id="resultWpm">0</span>
+            <span class="results-hero-label">WPM</span>
+          </div>
+          <div class="results-hero-divider"></div>
+          <div class="results-hero-stat">
+            <span class="results-hero-value" id="resultAccuracy">0%</span>
+            <span class="results-hero-label">Accuracy</span>
+          </div>
+          <div class="results-hero-divider"></div>
+          <div class="results-hero-stat">
+            <span class="results-hero-value" id="resultConsistency">0%</span>
+            <span class="results-hero-label">Consistency</span>
+          </div>
+        </div>
+
+        <div class="results-detail-grid">
+          <div class="results-detail">
+            <span class="results-detail-label">Correct characters</span>
+            <span class="results-detail-value success" id="resultCorrectChars">0</span>
+          </div>
+          <div class="results-detail">
+            <span class="results-detail-label">Incorrect characters</span>
+            <span class="results-detail-value error" id="resultIncorrectChars">0</span>
+          </div>
+          <div class="results-detail">
+            <span class="results-detail-label">Mistakes</span>
+            <span class="results-detail-value" id="resultMistakes">0</span>
+          </div>
+          <div class="results-detail">
+            <span class="results-detail-label">Total words</span>
+            <span class="results-detail-value" id="resultWords">0</span>
+          </div>
+        </div>
+
+        <button class="btn-try-again" id="tryAgainBtn">Try Again</button>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ============ FOOTER ============ -->
+  <footer class="site-footer">
+    <span class="credit">AI-Slop by Ishan</span>
+  </footer>
+
+  <script src="script.js"></script>
+</body>
+</html>

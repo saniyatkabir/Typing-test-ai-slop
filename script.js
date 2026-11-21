@@ -1,14 +1,6 @@
-/* ==========================================================================
-   Typing Test — Application Logic
-   Vanilla JS. No dependencies. Organized into small, reusable functions.
-   ========================================================================== */
-
 (() => {
   'use strict';
 
-  /* ---------------------------------------------------------------------
-     Word bank — common English words, shuffled and sampled per test.
-  --------------------------------------------------------------------- */
   const WORD_BANK = [
     'the','of','and','to','in','a','is','that','for','it','as','was','with','be','by','on','not','he',
     'this','are','or','his','from','at','which','but','have','an','had','they','you','were','their',
@@ -37,616 +29,458 @@
     'engine','castle','ribbon','planet','copper','marble','velvet','canvas','ladder','compass'
   ];
 
-  /* ---------------------------------------------------------------------
-     DOM references
-  --------------------------------------------------------------------- */
-  const el = {
-    timeOptions: document.querySelectorAll('.time-option'),
-    statTime: document.getElementById('statTime'),
-    statWpm: document.getElementById('statWpm'),
-    statAccuracy: document.getElementById('statAccuracy'),
-    statMistakes: document.getElementById('statMistakes'),
+  const PARAGRAPHS = [
+    'By the time the rain stopped, the street had gone quiet. Water ran along the edge of the pavement, carrying leaves and small scraps of paper toward the drain. A shopkeeper pulled a chair outside, wiped the seat with a cloth, and sat down to watch the clouds. Across the road, someone opened a window. The afternoon was cooler now, and the smell of wet earth drifted in. People stepped out slowly, taking the longer route around puddles, and the street began to sound like itself again.',
+    'The old library opened at nine, but the reading room stayed empty for another hour. Sunlight reached the first row of tables, leaving the rest of the room in shade. A librarian pushed a cart past the shelves and stopped to straighten a stack of books. Near the window, a student unfolded a map and traced the coastline with a finger. The margins were crowded with notes, some written in pencil and others in blue ink. She found the town she was looking for, copied its name into her notebook, and turned to the next page.',
+    'Two friends boarded the ferry just before it left the pier. They stood near the railing and watched the city fall behind them. One pointed to a small boat crossing the river, while the other tried to take a photograph without getting the railing in the frame. When the wind picked up, they moved inside and shared a cup of tea. They had planned the trip weeks earlier, but neither had decided what to do after landing. At the next stop, they followed the crowd ashore and chose the first street that looked interesting.',
+    'On Saturday morning, the market filled before the sun cleared the rooftops. Vendors arranged oranges in neat rows and weighed handfuls of rice on metal scales. A customer asked whether the bread was still warm. The baker cut a small piece, wrapped it in paper, and handed it across the counter. The customer tasted it, smiled, and bought a whole loaf. At the far end of the market, a bicycle bell rang twice. People stepped aside, then returned to their conversations as the rider disappeared into the next lane.'
+  ];
+  const MODE_LABELS = { words: 'Words', paragraphs: 'Paragraphs', custom: 'Custom Text' };
+  const STORAGE_KEY = 'typetest-practice-v1';
+  const GOAL = { wpm: 30, accuracy: 95 };
+  const SAMPLE_SECONDS = 5;
+  const BATCH_SIZE = 60;
+  const segmenter = typeof Intl.Segmenter === 'function' ? new Intl.Segmenter() : null;
+  const byId = (id) => document.getElementById(id);
+  const input = byId('typingInput');
+  const viewport = byId('wordsViewport');
+  const track = byId('wordsTrack');
+  const caret = byId('caret');
+  const customDialog = byId('customDialog');
+  const historyDialog = byId('historyDialog');
+  const resultsDialog = byId('resultsDialog');
+  const modeButtons = document.querySelectorAll('[data-mode]');
+  const timeButtons = document.querySelectorAll('[data-time]');
+  const dateFormat = new Intl.DateTimeFormat(undefined, { dateStyle: 'medium' });
 
-    typeCard: document.getElementById('typeCard'),
-    wordsViewport: document.getElementById('wordsViewport'),
-    wordsTrack: document.getElementById('wordsTrack'),
-    caret: document.getElementById('caret'),
-    focusOverlay: document.getElementById('focusOverlay'),
-    progressFill: document.getElementById('progressFill'),
+  let mode = 'words';
+  let duration = 30;
+  let customText = '';
+  let previousParagraph = -1;
+  let run;
 
-    restartBtn: document.getElementById('restartBtn'),
-
-    gridChars: document.getElementById('gridChars'),
-    gridCorrect: document.getElementById('gridCorrect'),
-    gridIncorrect: document.getElementById('gridIncorrect'),
-    gridWords: document.getElementById('gridWords'),
-    gridTime: document.getElementById('gridTime'),
-
-    resultsOverlay: document.getElementById('resultsOverlay'),
-    resultsMessage: document.getElementById('resultsMessage'),
-    resultWpm: document.getElementById('resultWpm'),
-    resultAccuracy: document.getElementById('resultAccuracy'),
-    resultConsistency: document.getElementById('resultConsistency'),
-    resultCorrectChars: document.getElementById('resultCorrectChars'),
-    resultIncorrectChars: document.getElementById('resultIncorrectChars'),
-    resultMistakes: document.getElementById('resultMistakes'),
-    resultWords: document.getElementById('resultWords'),
-    tryAgainBtn: document.getElementById('tryAgainBtn'),
-  };
-
-  const WORDS_PER_TEST = 60;
-
-  /* ---------------------------------------------------------------------
-     State
-  --------------------------------------------------------------------- */
-  const state = {
-    duration: 30,          // selected test length in seconds
-    timeLeft: 30,
-    words: [],              // array of word strings
-    wordEls: [],             // array of arrays of letter <span> elements per word
-    currentWordIndex: 0,
-    currentLetterIndex: 0,
-    typedWords: [],           // what the user actually typed per word (for extra chars)
-    correctChars: 0,
-    incorrectChars: 0,
-    extraChars: 0,
-    mistakes: 0,
-    isRunning: false,
-    isFinished: false,
-    timerId: null,
-    startTime: null,
-    wpmSamples: [],           // wpm snapshots taken every second, for consistency
-  };
-
-  /* ---------------------------------------------------------------------
-     Word generation
-  --------------------------------------------------------------------- */
-  function generateWords(count) {
-    const result = [];
-    for (let i = 0; i < count; i++) {
-      const randomIndex = Math.floor(Math.random() * WORD_BANK.length);
-      result.push(WORD_BANK[randomIndex]);
+  function loadHistory() {
+    try {
+      const data = JSON.parse(localStorage.getItem(STORAGE_KEY));
+      return {
+        recent: Array.isArray(data?.recent) ? data.recent : [],
+        best: data?.best && typeof data.best === 'object' ? data.best : {}
+      };
+    } catch {
+      return { recent: [], best: {} };
     }
-    return result;
   }
 
-  /* ---------------------------------------------------------------------
-     Rendering
-  --------------------------------------------------------------------- */
-  function renderWords() {
-    el.wordsTrack.innerHTML = '';
-    state.wordEls = [];
+  let history = loadHistory();
 
-    state.words.forEach((word) => {
-      const wordEl = document.createElement('span');
-      wordEl.className = 'word';
-
-      const letterEls = [];
-      for (const char of word) {
-        const letterEl = document.createElement('span');
-        letterEl.className = 'letter';
-        letterEl.textContent = char;
-        wordEl.appendChild(letterEl);
-        letterEls.push(letterEl);
-      }
-
-      state.wordEls.push(letterEls);
-      el.wordsTrack.appendChild(wordEl);
-    });
-
-    positionCaret();
+  function characters(text) {
+    return segmenter ? Array.from(segmenter.segment(text), ({ segment }) => segment) : Array.from(text);
   }
 
-  // Move the caret to sit right before the current letter (or after the word, if finished it)
+  function normalizeText(text) {
+    return text.normalize('NFC').trim().replace(/\s+/gu, ' ');
+  }
+
+  function randomWords() {
+    return Array.from({ length: BATCH_SIZE }, () => WORD_BANK[Math.floor(Math.random() * WORD_BANK.length)]);
+  }
+
+  function nextParagraph() {
+    const offset = 1 + Math.floor(Math.random() * (PARAGRAPHS.length - 1));
+    previousParagraph = (previousParagraph + offset) % PARAGRAPHS.length;
+    return PARAGRAPHS[previousParagraph];
+  }
+
+  function letter(text) {
+    const span = document.createElement('span');
+    span.className = 'letter';
+    span.textContent = text;
+    return span;
+  }
+
+  function appendWords(words) {
+    const fragment = document.createDocumentFragment();
+    for (const text of words) {
+      if (run.words.length > 0) fragment.append(' ');
+      const letters = characters(text);
+      const spans = letters.map(letter);
+      const element = document.createElement('span');
+      element.className = 'word';
+      element.append(...spans);
+      fragment.append(element);
+      run.words.push({ text, letters, spans, element });
+    }
+    track.append(fragment);
+  }
+
   function positionCaret() {
-    const currentWordEl = el.wordsTrack.children[state.currentWordIndex];
-    if (!currentWordEl) return;
-
-    const letters = state.wordEls[state.currentWordIndex];
-    let targetRect;
-    const viewportRect = el.wordsViewport.getBoundingClientRect();
-
-    if (state.currentLetterIndex < letters.length) {
-      targetRect = letters[state.currentLetterIndex].getBoundingClientRect();
-    } else {
-      // caret goes right after the last letter of the word
-      const lastLetter = letters[letters.length - 1];
-      targetRect = lastLetter ? lastLetter.getBoundingClientRect() : currentWordEl.getBoundingClientRect();
-      targetRect = { left: targetRect.right, top: targetRect.top, height: targetRect.height };
-    }
-
-    const left = targetRect.left - viewportRect.left + el.wordsViewport.scrollLeft;
-    const top = targetRect.top - viewportRect.top + el.wordsViewport.scrollTop;
-
-    el.caret.style.left = `${left}px`;
-    el.caret.style.top = `${top + 2}px`;
-    el.caret.style.height = `${targetRect.height - 6}px`;
-
-    autoScroll();
+    const word = run.words[run.index];
+    if (!word) return;
+    const children = word.element.children;
+    const next = children[run.typed.length];
+    const anchor = next || children[children.length - 1];
+    const rect = anchor.getBoundingClientRect();
+    const frame = viewport.getBoundingClientRect();
+    const top = rect.top - frame.top + viewport.scrollTop;
+    const lineHeight = parseFloat(getComputedStyle(viewport).lineHeight);
+    viewport.scrollTop = Math.max(0, top - (lineHeight - rect.height) / 2);
+    const rtl = getComputedStyle(anchor).direction === 'rtl';
+    const edge = Boolean(next) !== rtl ? rect.left : rect.right;
+    caret.style.left = `${Math.max(0, edge - frame.left)}px`;
+    caret.style.top = `${top}px`;
+    caret.style.height = `${rect.height}px`;
   }
 
-  // Scroll the words track upward once the caret passes the first line
-  function autoScroll() {
-    const currentWordEl = el.wordsTrack.children[state.currentWordIndex];
-    if (!currentWordEl) return;
+  function updateSettings() {
+    for (const button of modeButtons) {
+      button.setAttribute('aria-pressed', String(button.dataset.mode === mode));
+    }
+    for (const button of timeButtons) {
+      button.setAttribute('aria-pressed', String(Number(button.dataset.time) === duration));
+    }
+    byId('editCustomBtn').hidden = mode !== 'custom';
+    byId('typingHint').textContent = mode === 'words'
+      ? 'Select the typing area and start typing to begin.'
+      : 'Start typing to begin. The test ends when you finish the passage or time runs out.';
+  }
 
-    const viewportRect = el.wordsViewport.getBoundingClientRect();
-    const wordRect = currentWordEl.getBoundingClientRect();
-    const lineHeight = parseFloat(getComputedStyle(el.wordsTrack).lineHeight);
+  function resetTest(focus = false) {
+    clearInterval(run?.timer);
+    run = {
+      words: [], index: 0, typed: [], committedCorrect: 0, committedErrors: 0,
+      correctAttempts: 0, typos: 0, skipped: 0, completed: 0,
+      startedAt: null, finished: false, resultsPending: false,
+      timer: null, samples: [], sampleCorrect: 0
+    };
+    track.replaceChildren();
+    input.value = '';
+    input.readOnly = false;
+    viewport.scrollTop = 0;
 
-    // Keep the active line roughly in the top third of the viewport
-    const offset = wordRect.top - viewportRect.top;
-    if (offset > lineHeight * 1.4) {
-      const shift = Math.floor(offset / lineHeight) * lineHeight;
-      el.wordsTrack.style.transform = `translateY(-${
-        (parseFloat(el.wordsTrack.dataset.shifted || 0)) + shift
-      }px)`;
-      el.wordsTrack.dataset.shifted =
-        (parseFloat(el.wordsTrack.dataset.shifted || 0)) + shift;
+    const words = mode === 'words' ? randomWords()
+      : (mode === 'paragraphs' ? nextParagraph() : customText).split(' ');
+    appendWords(words);
+    track.firstElementChild.classList.add('is-current');
+    byId('typingPrompt').textContent = words.join(' ');
+    updateSettings();
+    updateStats(0);
+    positionCaret();
+    if (focus) input.focus();
+  }
+
+  function currentCorrect() {
+    const word = run.words[run.index];
+    return run.typed.reduce((count, char, index) => count + Number(char === word.letters[index]), 0);
+  }
+
+  function correctCharacters() {
+    return run.committedCorrect + currentCorrect();
+  }
+
+  function accuracy() {
+    const attempts = run.correctAttempts + run.typos + run.skipped;
+    return attempts ? Math.round(100 * run.correctAttempts / attempts) : 100;
+  }
+
+  function wpm(elapsed) {
+    return Math.round(correctCharacters() * 12 / Math.max(elapsed, 1));
+  }
+
+  function elapsedSeconds() {
+    return run.startedAt === null ? 0 : (performance.now() - run.startedAt) / 1000;
+  }
+
+  function updateStats(elapsed) {
+    byId('statTime').textContent = `${Math.max(0, Math.ceil(duration - elapsed))}s`;
+    byId('statWpm').textContent = wpm(elapsed);
+    byId('statAccuracy').textContent = `${accuracy()}%`;
+    byId('progressFill').style.width = `${Math.min(100, elapsed / duration * 100)}%`;
+  }
+
+  function recordPace(elapsed) {
+    const intervals = Math.floor(elapsed / SAMPLE_SECONDS);
+    // A suspended browser can miss checkpoints. Only score intervals with an observed boundary.
+    if (intervals > run.samples.length + 1) {
+      run.paceUnavailable = true;
+    }
+    if (!run.paceUnavailable && intervals > run.samples.length) {
+      const correct = correctCharacters();
+      run.samples.push(Math.max(0, correct - run.sampleCorrect));
+      run.sampleCorrect = correct;
     }
   }
 
-  /* ---------------------------------------------------------------------
-     Test lifecycle
-  --------------------------------------------------------------------- */
-  function initTest() {
-    stopTimer();
-
-    state.timeLeft = state.duration;
-    state.words = generateWords(WORDS_PER_TEST);
-    state.currentWordIndex = 0;
-    state.currentLetterIndex = 0;
-    state.typedWords = [''];
-    state.correctChars = 0;
-    state.incorrectChars = 0;
-    state.extraChars = 0;
-    state.mistakes = 0;
-    state.isRunning = false;
-    state.isFinished = false;
-    state.startTime = null;
-    state.wpmSamples = [];
-
-    el.wordsTrack.style.transform = 'translateY(0px)';
-    el.wordsTrack.dataset.shifted = 0;
-    el.wordsTrack.classList.remove('is-blurred');
-    el.wordsViewport.classList.remove('is-active');
-    el.focusOverlay.classList.remove('is-visible');
-    el.resultsOverlay.classList.remove('is-visible');
-    el.progressFill.style.width = '0%';
-
-    renderWords();
-    updateLiveStats();
-    updateTimeDisplays(state.timeLeft);
+  function tick() {
+    const elapsed = Math.min(duration, elapsedSeconds());
+    recordPace(elapsed);
+    if (elapsed >= duration) {
+      finishTest(duration);
+      return;
+    }
+    updateStats(elapsed);
   }
 
   function startTest() {
-    if (state.isRunning || state.isFinished) return;
-    state.isRunning = true;
-    state.startTime = Date.now();
-
-    state.timerId = setInterval(() => {
-      state.timeLeft -= 1;
-      recordWpmSample();
-      updateTimeDisplays(state.timeLeft);
-      updateProgress();
-      updateLiveStats();
-
-      if (state.timeLeft <= 0) {
-        finishTest();
-      }
-    }, 1000);
+    run.startedAt = performance.now();
+    run.timer = setInterval(tick, 200);
   }
 
-  function stopTimer() {
-    if (state.timerId) {
-      clearInterval(state.timerId);
-      state.timerId = null;
+  function drawActiveWord() {
+    const { letters, spans, element } = run.words[run.index];
+    while (element.children.length > spans.length) element.lastElementChild.remove();
+    spans.forEach((span, index) => {
+      span.classList.toggle('is-correct', run.typed[index] === letters[index]);
+      span.classList.toggle('is-incorrect', index < run.typed.length && run.typed[index] !== letters[index]);
+    });
+    for (const char of run.typed.slice(letters.length)) {
+      const span = letter(char);
+      span.classList.add('is-extra');
+      element.append(span);
     }
   }
 
-  function finishTest() {
-    stopTimer();
-    state.isRunning = false;
-    state.isFinished = true;
-    el.wordsViewport.classList.remove('is-active');
-    el.wordsTrack.classList.add('is-blurred');
-    showResults();
+  function submitWord() {
+    const word = run.words[run.index];
+    const correct = currentCorrect();
+    const skipped = Math.max(0, word.letters.length - run.typed.length);
+    const complete = correct === word.letters.length && run.typed.length === word.letters.length;
+
+    run.committedCorrect += correct;
+    run.committedErrors += run.typed.length - correct + skipped;
+    run.skipped += skipped;
+    run.completed += Number(complete);
+    word.spans.slice(run.typed.length).forEach((span) => span.classList.add('is-skipped'));
+    word.element.classList.remove('is-current');
+    run.typed = [];
+
+    const lastWord = run.index === run.words.length - 1;
+    if (lastWord && mode !== 'words') {
+      finishTest(Math.min(duration, elapsedSeconds()));
+      return;
+    }
+
+    // Count the separator as correct only when it follows the full expected word.
+    if (complete) {
+      run.committedCorrect += 1;
+      run.correctAttempts += 1;
+    }
+    if (lastWord) {
+      const words = randomWords();
+      appendWords(words);
+      byId('typingPrompt').textContent = words.join(' ');
+    }
+    run.index += 1;
+    run.words[run.index].element.classList.add('is-current');
   }
 
-  function restartTest() {
-    initTest();
-    el.wordsViewport.focus();
-  }
-
-  /* ---------------------------------------------------------------------
-     Typing input handling
-  --------------------------------------------------------------------- */
-  function handleKeydown(e) {
-    if (state.isFinished) return;
-
-    // Global shortcuts
-    if (e.key === 'Tab') {
-      e.preventDefault();
-      restartTest();
-      return;
-    }
-    if (e.key === 'Escape') {
-      e.preventDefault();
-      restartTest();
+  function processInput() {
+    if (run.finished) return;
+    const incoming = characters(input.value.normalize('NFC'));
+    if (run.startedAt !== null && elapsedSeconds() >= duration) {
+      input.value = run.typed.join('');
+      tick();
       return;
     }
 
-    // Ignore modifier combos (copy/paste/select-all etc.)
-    if (e.ctrlKey || e.metaKey || e.altKey) {
-      return;
-    }
+    // The native textarea supports physical keyboards, mobile keyboards, and IME.
+    // It holds the current word so native backspace and undo can edit that word.
+    let prefix = 0;
+    while (prefix < run.typed.length && run.typed[prefix] === incoming[prefix]) prefix += 1;
+    run.typed.length = prefix;
 
-    const key = e.key;
-
-    if (key === 'Backspace') {
-      e.preventDefault();
-      handleBackspace(e.ctrlKey);
-      return;
-    }
-
-    if (key === ' ') {
-      e.preventDefault();
-      handleSpace();
-      return;
-    }
-
-    // Only accept single printable characters
-    if (key.length === 1) {
-      e.preventDefault();
-      handleCharacter(key);
-    }
-  }
-
-  function handleCharacter(char) {
-    if (!state.isRunning) startTest();
-
-    el.wordsViewport.classList.add('is-active');
-    el.focusOverlay.classList.remove('is-visible');
-
-    const wordIndex = state.currentWordIndex;
-    const letterIndex = state.currentLetterIndex;
-    const letters = state.wordEls[wordIndex];
-    const word = state.words[wordIndex];
-
-    state.typedWords[wordIndex] = (state.typedWords[wordIndex] || '') + char;
-
-    if (letterIndex < word.length) {
-      const letterEl = letters[letterIndex];
-      const isCorrect = char === word[letterIndex];
-      letterEl.classList.add(isCorrect ? 'is-correct' : 'is-incorrect');
-      letterEl.classList.remove('is-current');
-
-      if (isCorrect) {
-        state.correctChars += 1;
+    for (const char of incoming.slice(prefix)) {
+      if (/^\s+$/u.test(char)) {
+        if (run.typed.length > 0) {
+          drawActiveWord();
+          submitWord();
+        }
       } else {
-        state.incorrectChars += 1;
-        state.mistakes += 1;
-        triggerShake();
+        if (run.startedAt === null) startTest();
+        const word = run.words[run.index];
+        if (run.typed.length >= word.letters.length + 32) break;
+        if (char === word.letters[run.typed.length]) run.correctAttempts += 1;
+        else run.typos += 1;
+        run.typed.push(char);
       }
-    } else {
-      // Extra character beyond the word's length
-      const extraEl = document.createElement('span');
-      extraEl.className = 'letter is-extra';
-      extraEl.textContent = char;
-      el.wordsTrack.children[wordIndex].appendChild(extraEl);
-      letters.push(extraEl);
-      state.extraChars += 1;
-      state.incorrectChars += 1;
-      state.mistakes += 1;
-      triggerShake();
+      if (run.finished) break;
     }
 
-    state.currentLetterIndex += 1;
-    markCurrentLetter();
-    positionCaret();
-    updateLiveStats();
-  }
-
-  function handleBackspace(isCtrl) {
-    const wordIndex = state.currentWordIndex;
-    const letters = state.wordEls[wordIndex];
-
-    if (state.currentLetterIndex === 0) {
-      return; // can't go back into a completed word (Monkeytype-style: locked)
-    }
-
-    const deleteCount = isCtrl ? state.currentLetterIndex : 1;
-
-    for (let i = 0; i < deleteCount; i++) {
-      if (state.currentLetterIndex === 0) break;
-      state.currentLetterIndex -= 1;
-      const idx = state.currentLetterIndex;
-      const letterEl = letters[idx];
-      const word = state.words[wordIndex];
-
-      if (idx >= word.length) {
-        // remove extra letter entirely
-        letterEl.remove();
-        letters.pop();
-        state.extraChars = Math.max(0, state.extraChars - 1);
-        state.incorrectChars = Math.max(0, state.incorrectChars - 1);
+    if (!run.finished) {
+      const word = run.words[run.index];
+      drawActiveWord();
+      if (mode !== 'words' && run.index === run.words.length - 1 && run.typed.join('') === word.text) {
+        submitWord();
       } else {
-        if (letterEl.classList.contains('is-correct')) {
-          state.correctChars = Math.max(0, state.correctChars - 1);
-        } else if (letterEl.classList.contains('is-incorrect')) {
-          state.incorrectChars = Math.max(0, state.incorrectChars - 1);
-        }
-        letterEl.classList.remove('is-correct', 'is-incorrect', 'is-current');
+        positionCaret();
+        updateStats(elapsedSeconds());
       }
     }
 
-    state.typedWords[wordIndex] = state.typedWords[wordIndex].slice(0, state.currentLetterIndex);
-    markCurrentLetter();
-    positionCaret();
-    updateLiveStats();
+    const current = run.typed.join('');
+    if (input.value !== current) input.value = current;
   }
 
-  function handleSpace() {
-    if (!state.isRunning) return;
+  function consistency() {
+    if (run.samples.length < 2 || run.paceUnavailable) return '—';
+    const mean = run.samples.reduce((total, value) => total + value, 0) / run.samples.length;
+    if (mean === 0) return '—';
+    const variance = run.samples.reduce((total, value) => total + (value - mean) ** 2, 0) / run.samples.length;
+    return `${Math.max(0, Math.round(100 * (1 - Math.sqrt(variance) / mean)))}%`;
+  }
 
-    const wordIndex = state.currentWordIndex;
-    const word = state.words[wordIndex];
-    const typed = state.typedWords[wordIndex] || '';
-
-    // Don't allow moving forward on an empty word
-    if (typed.length === 0) return;
-
-    const wordEl = el.wordsTrack.children[wordIndex];
-    if (typed !== word) {
-      wordEl.classList.add('is-wrong-word');
+  function recordResult(result) {
+    // Merge with newer sessions from other tabs before saving.
+    try {
+      if (localStorage.getItem(STORAGE_KEY)) history = loadHistory();
+    } catch {
+      // Keep this session's results available even when storage is blocked.
     }
+    const key = `${mode}-${duration}`;
+    const best = history.best[key];
+    const personalBest = !best || result.wpm > best.wpm ||
+      (result.wpm === best.wpm && result.accuracy > best.accuracy);
+    if (personalBest) history.best[key] = result;
+    const otherGroups = history.recent.filter((entry) => entry.mode !== mode || entry.duration !== duration);
+    const group = history.recent.filter((entry) => entry.mode === mode && entry.duration === duration);
+    history.recent = [result, ...group.slice(0, 9), ...otherGroups];
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(history));
+    } catch {
+      // The in-memory history still works until the page closes.
+    }
+    return personalBest;
+  }
 
-    // Any unfilled letters in a short word left incomplete count toward accuracy neutrally
-    if (state.currentWordIndex < state.words.length - 1) {
-      state.currentWordIndex += 1;
-      state.currentLetterIndex = 0;
-      state.typedWords[state.currentWordIndex] = '';
-      markCurrentLetter();
-      positionCaret();
-      updateLiveStats();
-    } else {
-      // Ran out of words before time — regenerate more so the test can continue
-      const more = generateWords(WORDS_PER_TEST);
-      state.words = state.words.concat(more);
-      more.forEach((word) => {
-        const wordEl = document.createElement('span');
-        wordEl.className = 'word';
-        const letterEls = [];
-        for (const char of word) {
-          const letterEl = document.createElement('span');
-          letterEl.className = 'letter';
-          letterEl.textContent = char;
-          wordEl.appendChild(letterEl);
-          letterEls.push(letterEl);
-        }
-        state.wordEls.push(letterEls);
-        el.wordsTrack.appendChild(wordEl);
-      });
-      state.currentWordIndex += 1;
-      state.currentLetterIndex = 0;
-      state.typedWords[state.currentWordIndex] = '';
-      markCurrentLetter();
-      positionCaret();
-      updateLiveStats();
+  function showPendingResults() {
+    if (run.resultsPending && !customDialog.open && !historyDialog.open) {
+      run.resultsPending = false;
+      resultsDialog.showModal();
     }
   }
 
-  function markCurrentLetter() {
-    // clear previous "current" markers on the active word
-    const letters = state.wordEls[state.currentWordIndex];
-    letters.forEach((l) => l.classList.remove('is-current'));
+  function finishTest(elapsed) {
+    clearInterval(run.timer);
+    recordPace(elapsed);
+    run.finished = true;
+    input.readOnly = true;
+    updateStats(elapsed);
 
-    document.querySelectorAll('.word.is-current').forEach((w) => w.classList.remove('is-current'));
-    const currentWordEl = el.wordsTrack.children[state.currentWordIndex];
-    if (currentWordEl) currentWordEl.classList.add('is-current');
-
-    if (state.currentLetterIndex < letters.length) {
-      letters[state.currentLetterIndex].classList.add('is-current');
-    }
+    const result = { mode, duration, wpm: wpm(elapsed), accuracy: accuracy(), date: Date.now() };
+    const personalBest = recordResult(result);
+    const activeCorrect = currentCorrect();
+    const lastWord = run.words[run.index];
+    const activeComplete = run.typed.join('') === lastWord.text;
+    byId('resultsContext').textContent = `${MODE_LABELS[mode]} · ${duration}s${personalBest ? ' · Personal best' : ''}`;
+    byId('resultWpm').textContent = result.wpm;
+    byId('resultAccuracy').textContent = `${result.accuracy}%`;
+    byId('resultConsistency').textContent = consistency();
+    byId('resultCorrect').textContent = run.committedCorrect + activeCorrect;
+    byId('resultTypos').textContent = run.typos;
+    byId('resultErrors').textContent = run.committedErrors + run.typed.length - activeCorrect;
+    byId('resultWords').textContent = run.completed + Number(activeComplete);
+    const speedGap = Math.max(0, GOAL.wpm - result.wpm);
+    const accuracyGap = Math.max(0, GOAL.accuracy - result.accuracy);
+    const remaining = [
+      speedGap ? `${speedGap} more WPM` : '',
+      accuracyGap ? `${accuracyGap} more accuracy ${accuracyGap === 1 ? 'point' : 'points'}` : ''
+    ].filter(Boolean).join(' and ');
+    const goal = `${GOAL.wpm} WPM at ${GOAL.accuracy}% accuracy`;
+    byId('goalStatus').textContent = remaining ? `Goal · ${goal}. You need ${remaining}.` : `Goal reached · ${goal}.`;
+    run.resultsPending = true;
+    showPendingResults();
   }
 
-  function triggerShake() {
-    el.typeCard.classList.add('is-shaking');
-    window.setTimeout(() => el.typeCard.classList.remove('is-shaking'), 400);
-  }
-
-  /* ---------------------------------------------------------------------
-     Stats & scoring
-  --------------------------------------------------------------------- */
-  function elapsedMinutes() {
-    const elapsedSeconds = state.duration - state.timeLeft;
-    return Math.max(elapsedSeconds, 1) / 60;
-  }
-
-  function calcWpm() {
-    // Standard: (correct characters / 5) / minutes elapsed
-    const grossWords = state.correctChars / 5;
-    return Math.max(0, Math.round(grossWords / elapsedMinutes()));
-  }
-
-  function calcAccuracy() {
-    const total = state.correctChars + state.incorrectChars;
-    if (total === 0) return 100;
-    return Math.round((state.correctChars / total) * 100);
-  }
-
-  function wordsCompletedCount() {
-    return state.currentWordIndex;
-  }
-
-  function recordWpmSample() {
-    state.wpmSamples.push(calcWpm());
-  }
-
-  function calcConsistency() {
-    if (state.wpmSamples.length < 2) return 100;
-    const mean = state.wpmSamples.reduce((a, b) => a + b, 0) / state.wpmSamples.length;
-    if (mean === 0) return 100;
-    const variance =
-      state.wpmSamples.reduce((sum, v) => sum + Math.pow(v - mean, 2), 0) / state.wpmSamples.length;
-    const stdDev = Math.sqrt(variance);
-    const coefficientOfVariation = stdDev / mean;
-    // Convert to a 0-100 "consistency" score — lower variation = higher consistency
-    const consistency = Math.max(0, Math.min(100, Math.round(100 - coefficientOfVariation * 100)));
-    return consistency;
-  }
-
-  function updateLiveStats() {
-    const wpm = calcWpm();
-    const accuracy = calcAccuracy();
-    const totalChars = state.correctChars + state.incorrectChars;
-
-    el.statWpm.textContent = wpm;
-    el.statAccuracy.textContent = `${accuracy}%`;
-    el.statMistakes.textContent = state.mistakes;
-
-    el.gridChars.textContent = totalChars;
-    el.gridCorrect.textContent = state.correctChars;
-    el.gridIncorrect.textContent = state.incorrectChars;
-    el.gridWords.textContent = wordsCompletedCount();
-  }
-
-  function updateTimeDisplays(seconds) {
-    el.statTime.textContent = seconds;
-    el.gridTime.textContent = `${seconds}s`;
-  }
-
-  function updateProgress() {
-    const elapsed = state.duration - state.timeLeft;
-    const pct = Math.min(100, (elapsed / state.duration) * 100);
-    el.progressFill.style.width = `${pct}%`;
-  }
-
-  /* ---------------------------------------------------------------------
-     Results screen
-  --------------------------------------------------------------------- */
-  function performanceMessage(wpm, accuracy) {
-    if (wpm >= 80 && accuracy >= 95) return 'Excellent';
-    if (wpm >= 55 && accuracy >= 90) return 'Great';
-    if (wpm >= 30 && accuracy >= 80) return 'Good';
-    return 'Needs Practice';
-  }
-
-  function showResults() {
-    const wpm = calcWpm();
-    const accuracy = calcAccuracy();
-    const consistency = calcConsistency();
-    const message = performanceMessage(wpm, accuracy);
-
-    el.resultWpm.textContent = wpm;
-    el.resultAccuracy.textContent = `${accuracy}%`;
-    el.resultConsistency.textContent = `${consistency}%`;
-    el.resultCorrectChars.textContent = state.correctChars;
-    el.resultIncorrectChars.textContent = state.incorrectChars;
-    el.resultMistakes.textContent = state.mistakes;
-    el.resultWords.textContent = wordsCompletedCount();
-    el.resultsMessage.textContent = messageCopy(message);
-
-    el.resultsOverlay.classList.add('is-visible');
-  }
-
-  function messageCopy(tier) {
-    switch (tier) {
-      case 'Excellent': return 'Excellent — you\u2019re typing at a professional pace.';
-      case 'Great': return 'Great work — fast and accurate.';
-      case 'Good': return 'Good run — keep practicing to build speed.';
-      default: return 'Needs Practice — try again to build momentum.';
-    }
-  }
-
-  /* ---------------------------------------------------------------------
-     Duration selection
-  --------------------------------------------------------------------- */
-  function selectDuration(seconds) {
-    state.duration = seconds;
-    el.timeOptions.forEach((btn) => {
-      btn.classList.toggle('is-active', Number(btn.dataset.time) === seconds);
+  function showHistory() {
+    const recent = history.recent.filter((entry) => entry.mode === mode && entry.duration === duration);
+    const best = history.best[`${mode}-${duration}`];
+    byId('historyContext').textContent = `${MODE_LABELS[mode]} · ${duration}s · This device`;
+    byId('historyBest').textContent = best ? `Personal best · ${best.wpm} WPM at ${best.accuracy}% accuracy` : '';
+    byId('historyEmpty').hidden = recent.length > 0;
+    byId('historyTable').hidden = recent.length === 0;
+    const rows = recent.map((entry) => {
+      const row = document.createElement('tr');
+      for (const value of [dateFormat.format(entry.date), entry.wpm, `${entry.accuracy}%`]) {
+        const cell = document.createElement('td');
+        cell.textContent = value;
+        row.append(cell);
+      }
+      return row;
     });
-    initTest();
+    byId('historyRows').replaceChildren(...rows);
+    historyDialog.showModal();
   }
 
-  /* ---------------------------------------------------------------------
-     Event wiring
-  --------------------------------------------------------------------- */
-  function attachEvents() {
-    el.timeOptions.forEach((btn) => {
-      btn.addEventListener('click', () => selectDuration(Number(btn.dataset.time)));
+  function editCustomText() {
+    byId('customText').value = customText;
+    byId('customError').hidden = true;
+    customDialog.showModal();
+  }
+
+  for (const button of timeButtons) {
+    button.addEventListener('click', () => {
+      const nextDuration = Number(button.dataset.time);
+      if (duration === nextDuration) return;
+      duration = nextDuration;
+      resetTest();
     });
+  }
 
-    el.wordsViewport.addEventListener('keydown', handleKeydown);
-
-    // Also allow typing to begin from anywhere on the page for convenience
-    document.addEventListener('keydown', (e) => {
-      if (document.activeElement !== el.wordsViewport && !state.isFinished) {
-        // Redirect focus, then let the viewport's own listener process the next key
-        if (e.key.length === 1 || e.key === 'Backspace' || e.key === ' ' || e.key === 'Tab' || e.key === 'Escape') {
-          el.wordsViewport.focus();
-        }
+  for (const button of modeButtons) {
+    button.addEventListener('click', () => {
+      const nextMode = button.dataset.mode;
+      if (nextMode === 'custom' && !customText) {
+        editCustomText();
+      } else if (mode !== nextMode) {
+        mode = nextMode;
+        resetTest();
       }
     });
-
-    el.wordsViewport.addEventListener('focus', () => {
-      el.focusOverlay.classList.remove('is-visible');
-    });
-
-    el.wordsViewport.addEventListener('blur', () => {
-      if (!state.isFinished && !state.isRunning) {
-        el.focusOverlay.classList.add('is-visible');
-      } else if (!state.isFinished && state.isRunning) {
-        el.focusOverlay.classList.add('is-visible');
-      }
-    });
-
-    el.focusOverlay.addEventListener('click', () => el.wordsViewport.focus());
-
-    // Prevent copy / cut / paste inside the typing area
-    ['copy', 'cut', 'paste'].forEach((evt) => {
-      el.wordsViewport.addEventListener(evt, (e) => e.preventDefault());
-    });
-
-    // Prevent right-click only inside the typing card
-    el.typeCard.addEventListener('contextmenu', (e) => e.preventDefault());
-
-    // Restart button with ripple
-    el.restartBtn.addEventListener('click', (e) => {
-      spawnRipple(el.restartBtn, e);
-      restartTest();
-    });
-
-    el.tryAgainBtn.addEventListener('click', () => restartTest());
-
-    window.addEventListener('resize', () => {
-      positionCaret();
-    });
   }
 
-  function spawnRipple(button, event) {
-    const rect = button.getBoundingClientRect();
-    const ripple = document.createElement('span');
-    const size = Math.max(rect.width, rect.height);
-    ripple.className = 'ripple';
-    ripple.style.width = ripple.style.height = `${size}px`;
-    ripple.style.left = `${(event.clientX || rect.left + rect.width / 2) - rect.left - size / 2}px`;
-    ripple.style.top = `${(event.clientY || rect.top + rect.height / 2) - rect.top - size / 2}px`;
-    button.style.position = 'relative';
-    button.appendChild(ripple);
-    window.setTimeout(() => ripple.remove(), 650);
-  }
+  input.addEventListener('input', (event) => {
+    if (!event.isComposing) processInput();
+  });
+  input.addEventListener('compositionend', processInput);
+  input.addEventListener('paste', (event) => event.preventDefault());
+  input.addEventListener('drop', (event) => event.preventDefault());
+  input.addEventListener('beforeinput', (event) => {
+    if (event.inputType === 'insertFromPaste' || event.inputType === 'insertFromDrop') event.preventDefault();
+  });
+  document.addEventListener('keydown', (event) => {
+    if (event.key !== 'Escape' || event.isComposing || document.querySelector('dialog[open]')) return;
+    event.preventDefault();
+    resetTest(true);
+  });
 
-  /* ---------------------------------------------------------------------
-     Init
-  --------------------------------------------------------------------- */
-  function init() {
-    attachEvents();
-    initTest();
-    // Auto-focus the typing area on load
-    window.setTimeout(() => el.wordsViewport.focus(), 300);
-  }
+  byId('restartBtn').addEventListener('click', () => resetTest(true));
+  byId('tryAgainBtn').addEventListener('click', () => {
+    resultsDialog.close();
+    resetTest(true);
+  });
+  byId('closeResultsBtn').addEventListener('click', () => resultsDialog.close());
+  byId('historyBtn').addEventListener('click', showHistory);
+  byId('closeHistoryBtn').addEventListener('click', () => historyDialog.close());
+  byId('editCustomBtn').addEventListener('click', editCustomText);
+  byId('cancelCustomBtn').addEventListener('click', () => customDialog.close());
+  resultsDialog.addEventListener('close', () => {
+    if (run.finished) byId('restartBtn').focus();
+  });
+  historyDialog.addEventListener('close', showPendingResults);
+  customDialog.addEventListener('close', showPendingResults);
+  byId('customForm').addEventListener('submit', (event) => {
+    event.preventDefault();
+    const value = normalizeText(byId('customText').value);
+    if (!value) {
+      byId('customError').hidden = false;
+      byId('customText').focus();
+      return;
+    }
+    customText = value;
+    mode = 'custom';
+    customDialog.close();
+    resetTest(true);
+  });
 
-  document.addEventListener('DOMContentLoaded', init);
+  window.addEventListener('resize', positionCaret);
+  resetTest();
 })();

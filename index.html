@@ -1,184 +1,124 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Typing Test — Improve Your Speed &amp; Accuracy</title>
-  <meta name="description" content="A minimal, premium typing speed test. Track your WPM, accuracy, and consistency." />
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="style.css" />
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Typetest | Typing Speed and Accuracy</title>
+  <meta name="description" content="Practice typing with timed word tests, paragraphs, or your own text. Track your speed, accuracy, and progress.">
+  <link rel="stylesheet" href="style.css">
+  <script src="script.js" defer></script>
 </head>
 <body>
-
-  <!-- Ambient background glow -->
-  <div class="bg-glow" aria-hidden="true"></div>
-
   <div class="app">
-
-    <!-- ============ HEADER ============ -->
     <header class="site-header">
-      <div class="logo">
-        <span class="logo-mark">⌁</span>
-        <span class="logo-text">typetest</span>
-      </div>
-
-      <div class="time-select" role="group" aria-label="Select test duration">
-        <button class="time-option" data-time="15">15s</button>
-        <button class="time-option is-active" data-time="30">30s</button>
-        <button class="time-option" data-time="60">60s</button>
-        <button class="time-option" data-time="120">120s</button>
-      </div>
+      <div class="logo"><span aria-hidden="true">⌁</span> typetest</div>
+      <button class="secondary" id="historyBtn" type="button">Practice history</button>
     </header>
 
-    <!-- ============ MAIN ============ -->
-    <main class="main">
-
-      <!-- Hero -->
-      <section class="hero" id="hero">
-        <h1 class="hero-title">Typing Test</h1>
-        <p class="hero-subtitle">Improve your typing speed and accuracy.</p>
+    <main>
+      <section class="hero">
+        <h1>Typing Test</h1>
+        <p>Practice your speed and accuracy.</p>
       </section>
 
-      <!-- Live stat strip -->
-      <section class="stat-strip" id="statStrip" aria-live="polite">
-        <div class="stat-pill">
-          <span class="stat-value" id="statTime">30</span>
-          <span class="stat-label">seconds</span>
+      <section class="practice" aria-label="Typing practice">
+        <div class="settings">
+          <div class="segments" role="group" aria-label="Practice mode">
+            <button type="button" data-mode="words" aria-pressed="true">Words</button>
+            <button type="button" data-mode="paragraphs" aria-pressed="false">Paragraphs</button>
+            <button type="button" data-mode="custom" aria-pressed="false">Custom Text</button>
+          </div>
+          <div class="segments" role="group" aria-label="Test duration">
+            <button type="button" data-time="15" aria-pressed="false">15s</button>
+            <button type="button" data-time="30" aria-pressed="true">30s</button>
+            <button type="button" data-time="60" aria-pressed="false">60s</button>
+            <button type="button" data-time="120" aria-pressed="false">120s</button>
+          </div>
         </div>
-        <div class="stat-divider"></div>
-        <div class="stat-pill">
-          <span class="stat-value" id="statWpm">0</span>
-          <span class="stat-label">wpm</span>
+
+        <dl class="live-stats" aria-label="Live statistics">
+          <div><dt>Time left</dt><dd id="statTime">30s</dd></div>
+          <div><dt>WPM</dt><dd id="statWpm">0</dd></div>
+          <div><dt>Accuracy</dt><dd id="statAccuracy">100%</dd></div>
+        </dl>
+
+        <div class="type-card" id="typeCard">
+          <div class="progress-track" aria-hidden="true"><div id="progressFill"></div></div>
+          <div class="words-viewport" id="wordsViewport">
+            <div class="words-track" id="wordsTrack" aria-hidden="true"></div>
+            <div class="caret" id="caret" aria-hidden="true"></div>
+          </div>
+          <textarea id="typingInput" aria-label="Typing area" aria-describedby="typingHint typingPrompt"
+            autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" wrap="off"
+            enterkeyhint="done"></textarea>
+          <p class="sr-only" id="typingPrompt"></p>
         </div>
-        <div class="stat-divider"></div>
-        <div class="stat-pill">
-          <span class="stat-value" id="statAccuracy">100%</span>
-          <span class="stat-label">accuracy</span>
-        </div>
-        <div class="stat-divider"></div>
-        <div class="stat-pill">
-          <span class="stat-value" id="statMistakes">0</span>
-          <span class="stat-label">mistakes</span>
+
+        <div class="practice-footer">
+          <p id="typingHint">Select the typing area and start typing to begin.</p>
+          <div class="actions">
+            <button class="secondary" type="button" id="editCustomBtn" hidden>Edit text</button>
+            <button class="secondary" type="button" id="restartBtn" aria-keyshortcuts="Escape">Restart <kbd>Esc</kbd></button>
+          </div>
         </div>
       </section>
-
-      <!-- Typing area -->
-      <section class="type-card" id="typeCard">
-        <div class="progress-track" aria-hidden="true">
-          <div class="progress-fill" id="progressFill"></div>
-        </div>
-
-        <div
-          class="words-viewport"
-          id="wordsViewport"
-          tabindex="0"
-          role="textbox"
-          aria-label="Typing area. Start typing to begin the test."
-          aria-multiline="false"
-        >
-          <div class="words-track" id="wordsTrack"></div>
-          <div class="caret" id="caret"></div>
-        </div>
-
-        <div class="focus-overlay" id="focusOverlay">
-          <span>Click here or press any key to focus</span>
-        </div>
-      </section>
-
-      <!-- Controls -->
-      <section class="controls">
-        <button class="btn-restart" id="restartBtn" aria-label="Restart test">
-          <svg class="icon-refresh" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-            <path d="M4 4v6h6M20 20v-6h-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-            <path d="M4.5 15a8 8 0 0 0 14.5 3.5M19.5 9A8 8 0 0 0 5 5.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-          </svg>
-          <span>Restart</span>
-          <kbd>Tab</kbd>
-        </button>
-      </section>
-
-      <!-- Detailed live stats grid (below the fold, always visible) -->
-      <section class="stats-grid" aria-label="Detailed statistics">
-        <div class="stat-card">
-          <span class="stat-card-label">Characters</span>
-          <span class="stat-card-value" id="gridChars">0</span>
-        </div>
-        <div class="stat-card">
-          <span class="stat-card-label">Correct</span>
-          <span class="stat-card-value success" id="gridCorrect">0</span>
-        </div>
-        <div class="stat-card">
-          <span class="stat-card-label">Incorrect</span>
-          <span class="stat-card-value error" id="gridIncorrect">0</span>
-        </div>
-        <div class="stat-card">
-          <span class="stat-card-label">Words typed</span>
-          <span class="stat-card-value" id="gridWords">0</span>
-        </div>
-        <div class="stat-card">
-          <span class="stat-card-label">Time remaining</span>
-          <span class="stat-card-value" id="gridTime">30s</span>
-        </div>
-      </section>
-
     </main>
-
-    <!-- ============ RESULTS OVERLAY ============ -->
-    <div class="results-overlay" id="resultsOverlay">
-      <div class="results-card" role="dialog" aria-modal="true" aria-labelledby="resultsTitle">
-        <p class="results-eyebrow">Test complete</p>
-        <h2 class="results-title" id="resultsTitle">Your Results</h2>
-        <p class="results-message" id="resultsMessage">Great job!</p>
-
-        <div class="results-hero-stats">
-          <div class="results-hero-stat">
-            <span class="results-hero-value" id="resultWpm">0</span>
-            <span class="results-hero-label">WPM</span>
-          </div>
-          <div class="results-hero-divider"></div>
-          <div class="results-hero-stat">
-            <span class="results-hero-value" id="resultAccuracy">0%</span>
-            <span class="results-hero-label">Accuracy</span>
-          </div>
-          <div class="results-hero-divider"></div>
-          <div class="results-hero-stat">
-            <span class="results-hero-value" id="resultConsistency">0%</span>
-            <span class="results-hero-label">Consistency</span>
-          </div>
-        </div>
-
-        <div class="results-detail-grid">
-          <div class="results-detail">
-            <span class="results-detail-label">Correct characters</span>
-            <span class="results-detail-value success" id="resultCorrectChars">0</span>
-          </div>
-          <div class="results-detail">
-            <span class="results-detail-label">Incorrect characters</span>
-            <span class="results-detail-value error" id="resultIncorrectChars">0</span>
-          </div>
-          <div class="results-detail">
-            <span class="results-detail-label">Mistakes</span>
-            <span class="results-detail-value" id="resultMistakes">0</span>
-          </div>
-          <div class="results-detail">
-            <span class="results-detail-label">Total words</span>
-            <span class="results-detail-value" id="resultWords">0</span>
-          </div>
-        </div>
-
-        <button class="btn-try-again" id="tryAgainBtn">Try Again</button>
-      </div>
-    </div>
-
+    <footer class="site-footer">Made by Ishan</footer>
   </div>
 
-  <!-- ============ FOOTER ============ -->
-  <footer class="site-footer">
-    <span class="credit">AI-Slop by Ishan</span>
-  </footer>
+  <dialog id="resultsDialog" aria-labelledby="resultsTitle">
+    <div class="dialog-body">
+      <h2 id="resultsTitle">Your results</h2>
+      <p class="muted" id="resultsContext"></p>
+      <dl class="results-stats">
+        <div><dt>WPM</dt><dd id="resultWpm">0</dd></div>
+        <div><dt>Accuracy</dt><dd id="resultAccuracy">0%</dd></div>
+        <div><dt>Consistency</dt><dd id="resultConsistency">—</dd></div>
+      </dl>
+      <p class="explanation">Accuracy includes corrected typos and skipped letters. Consistency measures how steady your pace was in five-second intervals.</p>
+      <dl class="result-details">
+        <div><dt>Correct characters</dt><dd id="resultCorrect">0</dd></div>
+        <div><dt>Typos made</dt><dd id="resultTypos">0</dd></div>
+        <div><dt>Uncorrected errors</dt><dd id="resultErrors">0</dd></div>
+        <div><dt>Words completed</dt><dd id="resultWords">0</dd></div>
+      </dl>
+      <p class="goal" id="goalStatus"></p>
+      <div class="actions">
+        <button class="primary" id="tryAgainBtn" type="button" autofocus>Try again</button>
+        <button class="secondary" id="closeResultsBtn" type="button">Close</button>
+      </div>
+    </div>
+  </dialog>
 
-  <script src="script.js"></script>
+  <dialog id="customDialog" aria-labelledby="customTitle">
+    <form class="dialog-body" id="customForm">
+      <h2 id="customTitle">Practice with your own text</h2>
+      <label for="customText">Practice passage</label>
+      <textarea id="customText" rows="6" maxlength="4000" required autofocus
+        aria-describedby="customHint customError" placeholder="Paste or type a passage"></textarea>
+      <p class="explanation" id="customHint">Up to 4,000 characters. The test ends when you finish the passage or run out of time.</p>
+      <p id="customError" role="alert" class="error" hidden>Enter some text to practice.</p>
+      <div class="actions">
+        <button class="primary" type="submit">Use this text</button>
+        <button class="secondary" type="button" id="cancelCustomBtn">Cancel</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="historyDialog" aria-labelledby="historyTitle">
+    <div class="dialog-body">
+      <h2 id="historyTitle">Practice history</h2>
+      <p class="muted" id="historyContext"></p>
+      <p id="historyBest"></p>
+      <p id="historyEmpty">Finish a test to start tracking your progress.</p>
+      <table id="historyTable" hidden>
+        <thead><tr><th scope="col">Date</th><th scope="col">WPM</th><th scope="col">Accuracy</th></tr></thead>
+        <tbody id="historyRows"></tbody>
+      </table>
+      <div class="actions">
+        <button class="secondary" type="button" id="closeHistoryBtn" autofocus>Close</button>
+      </div>
+    </div>
+  </dialog>
 </body>
 </html>

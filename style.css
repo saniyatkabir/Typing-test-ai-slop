@@ -199,7 +199,7 @@ dialog::backdrop { background: #090913c9; }
 .dialog-body { padding: clamp(16px, 5vw, 28px); display: grid; gap: 14px; }
 .dialog-body h2 { letter-spacing: -.04em; font-size: 1.65rem; }
 .dialog-body .actions { margin-top: 4px; }
-.results-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.results-stats { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .result-details { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .results-stats > div, .result-details > div { padding: 10px; background: var(--surface-raised); border-radius: 9px; }
 .results-more { border-top: 1px solid var(--border); padding-top: 4px; }

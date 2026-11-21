@@ -354,6 +354,7 @@
   function showPendingResults() {
     if (run.resultsPending && !customDialog.open && !historyDialog.open) {
       run.resultsPending = false;
+      byId('resultsMore').open = false;
       resultsDialog.showModal();
     }
   }

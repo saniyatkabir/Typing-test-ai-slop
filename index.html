@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Typetest | Typing Speed and Accuracy</title>
   <meta name="description" content="Practice typing with timed word tests, paragraphs, or your own text. Track your speed, accuracy, and progress.">
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="style.css">
   <script src="script.js" defer></script>
 </head>
@@ -63,7 +64,7 @@
         </div>
       </section>
     </main>
-    <footer class="site-footer">Made by Ishan</footer>
+    <footer class="site-footer">Made by Saniyat Kabir Ishan</footer>
   </div>
 
   <dialog id="resultsDialog" aria-labelledby="resultsTitle">
@@ -73,20 +74,23 @@
       <dl class="results-stats">
         <div><dt>WPM</dt><dd id="resultWpm">0</dd></div>
         <div><dt>Accuracy</dt><dd id="resultAccuracy">0%</dd></div>
-        <div><dt>Consistency</dt><dd id="resultConsistency">—</dd></div>
       </dl>
-      <p class="explanation">Accuracy includes corrected typos and skipped letters. Consistency measures how steady your pace was in five-second intervals.</p>
-      <dl class="result-details">
-        <div><dt>Correct characters</dt><dd id="resultCorrect">0</dd></div>
-        <div><dt>Typos made</dt><dd id="resultTypos">0</dd></div>
-        <div><dt>Uncorrected errors</dt><dd id="resultErrors">0</dd></div>
-        <div><dt>Words completed</dt><dd id="resultWords">0</dd></div>
-      </dl>
-      <p class="goal" id="goalStatus"></p>
       <div class="actions">
         <button class="primary" id="tryAgainBtn" type="button" autofocus>Try again</button>
         <button class="secondary" id="closeResultsBtn" type="button">Close</button>
       </div>
+      <details class="results-more" id="resultsMore">
+        <summary>More details</summary>
+        <p class="explanation">Accuracy includes corrected typos and skipped letters. Consistency measures how steady your pace was in five-second intervals.</p>
+        <dl class="result-details">
+          <div><dt>Consistency</dt><dd id="resultConsistency">—</dd></div>
+          <div><dt>Correct characters</dt><dd id="resultCorrect">0</dd></div>
+          <div><dt>Typos made</dt><dd id="resultTypos">0</dd></div>
+          <div><dt>Uncorrected errors</dt><dd id="resultErrors">0</dd></div>
+          <div><dt>Words completed</dt><dd id="resultWords">0</dd></div>
+        </dl>
+        <p class="goal" id="goalStatus"></p>
+      </details>
     </div>
   </dialog>
 

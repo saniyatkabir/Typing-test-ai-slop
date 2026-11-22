@@ -524,6 +524,28 @@
     historyDialog.showModal();
   }
 
+  function dismissOnBackdrop(dialog) {
+    function isBackdrop(event) {
+      if (event.target !== dialog) return false;
+      const { left, right, top, bottom } = dialog.getBoundingClientRect();
+      return event.clientX < left || event.clientX >= right ||
+        event.clientY < top || event.clientY >= bottom;
+    }
+
+    let pressedBackdrop = false;
+    dialog.addEventListener('pointerdown', (event) => {
+      pressedBackdrop = event.isPrimary && event.button === 0 && isBackdrop(event);
+    });
+    dialog.addEventListener('pointercancel', () => {
+      pressedBackdrop = false;
+    });
+    dialog.addEventListener('click', (event) => {
+      const dismiss = pressedBackdrop && event.detail > 0 && isBackdrop(event);
+      pressedBackdrop = false;
+      if (dismiss) dialog.close();
+    });
+  }
+
   function editCustomText() {
     byId('customText').value = customText;
     byId('customError').hidden = true;
@@ -576,25 +598,8 @@
   historyMode.addEventListener('change', renderHistory);
   historyDuration.addEventListener('change', renderHistory);
   byId('closeHistoryBtn').addEventListener('click', () => historyDialog.close());
-  function isHistoryBackdrop(event) {
-    if (event.target !== historyDialog) return false;
-    const { left, right, top, bottom } = historyDialog.getBoundingClientRect();
-    return event.clientX < left || event.clientX >= right ||
-      event.clientY < top || event.clientY >= bottom;
-  }
-
-  let pressedHistoryBackdrop = false;
-  historyDialog.addEventListener('pointerdown', (event) => {
-    pressedHistoryBackdrop = event.isPrimary && event.button === 0 && isHistoryBackdrop(event);
-  });
-  historyDialog.addEventListener('pointercancel', () => {
-    pressedHistoryBackdrop = false;
-  });
-  historyDialog.addEventListener('click', (event) => {
-    const dismiss = pressedHistoryBackdrop && event.detail > 0 && isHistoryBackdrop(event);
-    pressedHistoryBackdrop = false;
-    if (dismiss) historyDialog.close();
-  });
+  dismissOnBackdrop(resultsDialog);
+  dismissOnBackdrop(historyDialog);
   byId('editCustomBtn').addEventListener('click', editCustomText);
   byId('cancelCustomBtn').addEventListener('click', () => customDialog.close());
   resultsDialog.addEventListener('close', () => {

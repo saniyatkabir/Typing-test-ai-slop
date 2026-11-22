@@ -559,6 +559,25 @@
   historyMode.addEventListener('change', renderHistory);
   historyDuration.addEventListener('change', renderHistory);
   byId('closeHistoryBtn').addEventListener('click', () => historyDialog.close());
+  function isHistoryBackdrop(event) {
+    if (event.target !== historyDialog) return false;
+    const { left, right, top, bottom } = historyDialog.getBoundingClientRect();
+    return event.clientX < left || event.clientX >= right ||
+      event.clientY < top || event.clientY >= bottom;
+  }
+
+  let pressedHistoryBackdrop = false;
+  historyDialog.addEventListener('pointerdown', (event) => {
+    pressedHistoryBackdrop = event.isPrimary && event.button === 0 && isHistoryBackdrop(event);
+  });
+  historyDialog.addEventListener('pointercancel', () => {
+    pressedHistoryBackdrop = false;
+  });
+  historyDialog.addEventListener('click', (event) => {
+    const dismiss = pressedHistoryBackdrop && event.detail > 0 && isHistoryBackdrop(event);
+    pressedHistoryBackdrop = false;
+    if (dismiss) historyDialog.close();
+  });
   byId('editCustomBtn').addEventListener('click', editCustomText);
   byId('cancelCustomBtn').addEventListener('click', () => customDialog.close());
   resultsDialog.addEventListener('close', () => {

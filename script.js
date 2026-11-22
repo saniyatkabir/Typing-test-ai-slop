@@ -524,7 +524,7 @@
     historyDialog.showModal();
   }
 
-  function dismissOnBackdrop(dialog) {
+  function dismissOnBackdrop(dialog, dismissDialog = () => dialog.close()) {
     function isBackdrop(event) {
       if (event.target !== dialog) return false;
       const { left, right, top, bottom } = dialog.getBoundingClientRect();
@@ -542,7 +542,7 @@
     dialog.addEventListener('click', (event) => {
       const dismiss = pressedBackdrop && event.detail > 0 && isBackdrop(event);
       pressedBackdrop = false;
-      if (dismiss) dialog.close();
+      if (dismiss) dismissDialog();
     });
   }
 
@@ -589,16 +589,18 @@
   });
 
   byId('restartBtn').addEventListener('click', () => resetTest(true));
-  byId('tryAgainBtn').addEventListener('click', () => {
+  function startNextRound() {
     resultsDialog.close();
     resetTest(true);
-  });
+  }
+
+  byId('tryAgainBtn').addEventListener('click', startNextRound);
   byId('closeResultsBtn').addEventListener('click', () => resultsDialog.close());
   byId('historyBtn').addEventListener('click', showHistory);
   historyMode.addEventListener('change', renderHistory);
   historyDuration.addEventListener('change', renderHistory);
   byId('closeHistoryBtn').addEventListener('click', () => historyDialog.close());
-  dismissOnBackdrop(resultsDialog);
+  dismissOnBackdrop(resultsDialog, startNextRound);
   dismissOnBackdrop(historyDialog);
   byId('editCustomBtn').addEventListener('click', editCustomText);
   byId('cancelCustomBtn').addEventListener('click', () => customDialog.close());

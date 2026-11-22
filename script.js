@@ -38,6 +38,7 @@
   const MODE_LABELS = { words: 'Words', paragraphs: 'Paragraphs', custom: 'Custom Text' };
   const STORAGE_KEY = 'typetest-practice-v1';
   const GOAL = { wpm: 30, accuracy: 95 };
+  const HISTORY_LIMIT = 10;
   const SAMPLE_SECONDS = 5;
   const BATCH_SIZE = 60;
   const segmenter = typeof Intl.Segmenter === 'function' ? new Intl.Segmenter() : null;
@@ -46,8 +47,11 @@
   const viewport = byId('wordsViewport');
   const track = byId('wordsTrack');
   const caret = byId('caret');
+  const typingPanel = input.closest('.typing-panel');
   const customDialog = byId('customDialog');
   const historyDialog = byId('historyDialog');
+  const historyMode = byId('historyMode');
+  const historyDuration = byId('historyDuration');
   const resultsDialog = byId('resultsDialog');
   const modeButtons = document.querySelectorAll('[data-mode]');
   const timeButtons = document.querySelectorAll('[data-time]');
@@ -129,6 +133,24 @@
     caret.style.left = `${Math.max(0, edge - frame.left)}px`;
     caret.style.top = `${top}px`;
     caret.style.height = `${rect.height}px`;
+  }
+
+  function fitTypingPanel() {
+    const screen = window.visualViewport;
+    const keyboardHeight = screen ? window.innerHeight - screen.height : 0;
+    const keyboardOpen = document.activeElement === input && !run.finished &&
+      window.matchMedia('(pointer: coarse)').matches && screen?.scale === 1 && keyboardHeight > 120;
+    typingPanel.classList.toggle('keyboard-open', keyboardOpen);
+    positionCaret();
+    if (!keyboardOpen) return;
+
+    const statsTop = byId('liveStats').getBoundingClientRect().top;
+    const activeLineBottom = caret.getBoundingClientRect().bottom;
+    const top = screen.offsetTop + 8;
+    const bottom = screen.offsetTop + screen.height - 12;
+    if (statsTop < top || activeLineBottom > bottom) {
+      window.scrollBy({ top: statsTop - top, behavior: 'instant' });
+    }
   }
 
   function updateSettings() {
@@ -342,7 +364,7 @@
     if (personalBest) history.best[key] = result;
     const otherGroups = history.recent.filter((entry) => entry.mode !== mode || entry.duration !== duration);
     const group = history.recent.filter((entry) => entry.mode === mode && entry.duration === duration);
-    history.recent = [result, ...group.slice(0, 9), ...otherGroups];
+    history.recent = [result, ...group.slice(0, HISTORY_LIMIT - 1), ...otherGroups];
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(history));
     } catch {
@@ -364,6 +386,7 @@
     recordPace(elapsed);
     run.finished = true;
     input.readOnly = true;
+    typingPanel.classList.remove('keyboard-open');
     updateStats(elapsed);
 
     const result = { mode, duration, wpm: wpm(elapsed), accuracy: accuracy(), date: Date.now() };
@@ -391,13 +414,75 @@
     showPendingResults();
   }
 
-  function showHistory() {
-    const recent = history.recent.filter((entry) => entry.mode === mode && entry.duration === duration);
-    const best = history.best[`${mode}-${duration}`];
-    byId('historyContext').textContent = `${MODE_LABELS[mode]} · ${duration}s · This device`;
+  function trendChart(label, values, maximum, unit, target) {
+    const figure = document.createElement('figure');
+    const caption = document.createElement('figcaption');
+    const labelText = document.createElement('span');
+    const latest = document.createElement('strong');
+    labelText.textContent = label;
+    latest.textContent = `${values.at(-1)}${unit}`;
+    caption.append(labelText, latest);
+
+    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    svg.setAttribute('viewBox', '0 0 160 56');
+    svg.setAttribute('role', 'img');
+    svg.setAttribute('aria-label', `${label} from oldest to newest: ${values.map((value) => `${value}${unit}`).join(', ')}.`);
+    const y = (value) => 50 - value / maximum * 44;
+    const points = values.map((value, index) => [6 + index * 148 / (values.length - 1), y(value)]);
+    const line = document.createElementNS(svg.namespaceURI, 'line');
+    line.setAttribute('x1', '6');
+    line.setAttribute('x2', '154');
+    line.setAttribute('y1', y(target));
+    line.setAttribute('y2', y(target));
+    line.setAttribute('class', 'trend-goal');
+    const trend = document.createElementNS(svg.namespaceURI, 'polyline');
+    trend.setAttribute('points', points.map((point) => point.join(',')).join(' '));
+    svg.append(line, trend);
+    for (const [x, height] of points) {
+      const dot = document.createElementNS(svg.namespaceURI, 'circle');
+      dot.setAttribute('cx', x);
+      dot.setAttribute('cy', height);
+      dot.setAttribute('r', 2.5);
+      svg.append(dot);
+    }
+    figure.append(caption, svg);
+    return figure;
+  }
+
+  function renderHistory() {
+    const selectedMode = historyMode.value;
+    const selectedDuration = Number(historyDuration.value);
+    const recent = history.recent
+      .filter((entry) => entry.mode === selectedMode && entry.duration === selectedDuration)
+      .sort((first, second) => second.date - first.date)
+      .slice(0, HISTORY_LIMIT);
+    const best = history.best[`${selectedMode}-${selectedDuration}`];
+    const goalRounds = recent.filter(({ wpm, accuracy }) => wpm >= GOAL.wpm && accuracy >= GOAL.accuracy).length;
     byId('historyBest').textContent = best ? `Personal best · ${best.wpm} WPM at ${best.accuracy}% accuracy` : '';
-    byId('historyEmpty').hidden = recent.length > 0;
+    byId('historyGoal').textContent = recent.length
+      ? `${goalRounds} of ${recent.length} recent rounds reached ${GOAL.wpm} WPM and ${GOAL.accuracy}% accuracy.`
+      : '';
+    const empty = byId('historyEmpty');
+    empty.hidden = recent.length > 0;
+    empty.textContent = 'Finish a round in this mode and duration to start tracking progress.';
     byId('historyTable').hidden = recent.length === 0;
+
+    const trends = byId('historyTrends');
+    trends.replaceChildren();
+    trends.hidden = recent.length < 2;
+    if (!trends.hidden) {
+      const chronological = [...recent].reverse();
+      const speeds = chronological.map((entry) => entry.wpm);
+      const accuracies = chronological.map((entry) => entry.accuracy);
+      const note = document.createElement('p');
+      note.textContent = 'Oldest to newest · Dotted lines show your goals';
+      trends.append(
+        trendChart('Speed', speeds, Math.max(GOAL.wpm, ...speeds), ' WPM', GOAL.wpm),
+        trendChart('Accuracy', accuracies, 100, '%', GOAL.accuracy),
+        note
+      );
+    }
+
     const rows = recent.map((entry) => {
       const row = document.createElement('tr');
       for (const value of [dateFormat.format(entry.date), entry.wpm, `${entry.accuracy}%`]) {
@@ -408,6 +493,17 @@
       return row;
     });
     byId('historyRows').replaceChildren(...rows);
+  }
+
+  function showHistory() {
+    try {
+      if (localStorage.getItem(STORAGE_KEY)) history = loadHistory();
+    } catch {
+      // Use this session's scores when storage is blocked.
+    }
+    historyMode.value = mode;
+    historyDuration.value = String(duration);
+    renderHistory();
     historyDialog.showModal();
   }
 
@@ -460,6 +556,8 @@
   });
   byId('closeResultsBtn').addEventListener('click', () => resultsDialog.close());
   byId('historyBtn').addEventListener('click', showHistory);
+  historyMode.addEventListener('change', renderHistory);
+  historyDuration.addEventListener('change', renderHistory);
   byId('closeHistoryBtn').addEventListener('click', () => historyDialog.close());
   byId('editCustomBtn').addEventListener('click', editCustomText);
   byId('cancelCustomBtn').addEventListener('click', () => customDialog.close());
@@ -482,6 +580,10 @@
     resetTest(true);
   });
 
-  window.addEventListener('resize', positionCaret);
+  const schedulePanelFit = () => requestAnimationFrame(fitTypingPanel);
+  window.addEventListener('resize', schedulePanelFit);
+  window.visualViewport?.addEventListener('resize', schedulePanelFit);
+  input.addEventListener('focus', schedulePanelFit);
+  input.addEventListener('blur', schedulePanelFit);
   resetTest();
 })();

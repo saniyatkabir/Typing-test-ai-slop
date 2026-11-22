@@ -5,6 +5,17 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Typetest | Typing Speed and Accuracy</title>
   <meta name="description" content="Practice typing with timed word tests, paragraphs, or your own text. Track your speed, accuracy, and progress.">
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="Typetest | Typing Speed and Accuracy">
+  <meta property="og:description" content="Practice your speed and accuracy with timed words, paragraphs, or your own text.">
+  <meta property="og:url" content="https://typing-test-de-nigga.ishann.workers.dev/">
+  <meta property="og:image" content="https://typing-test-de-nigga.ishann.workers.dev/typetest-cover.jpg">
+  <meta property="og:image:type" content="image/jpeg">
+  <meta property="og:image:width" content="1080">
+  <meta property="og:image:height" content="1080">
+  <meta property="og:image:alt" content="Typing Test title beside a purple-lit mechanical keyboard.">
+  <meta name="twitter:card" content="summary">
+  <meta name="twitter:image:alt" content="Typing Test title beside a purple-lit mechanical keyboard.">
   <link rel="icon" href="favicon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="style.css">
   <script src="script.js" defer></script>
@@ -37,22 +48,24 @@
           </div>
         </div>
 
-        <dl class="live-stats" aria-label="Live statistics">
-          <div><dt>Time left</dt><dd id="statTime">30s</dd></div>
-          <div><dt>WPM</dt><dd id="statWpm">0</dd></div>
-          <div><dt>Accuracy</dt><dd id="statAccuracy">100%</dd></div>
-        </dl>
+        <div class="typing-panel">
+          <dl class="live-stats" id="liveStats" aria-label="Live statistics">
+            <div><dt>Time left</dt><dd id="statTime">30s</dd></div>
+            <div><dt>WPM</dt><dd id="statWpm">0</dd></div>
+            <div><dt>Accuracy</dt><dd id="statAccuracy">100%</dd></div>
+          </dl>
 
-        <div class="type-card" id="typeCard">
-          <div class="progress-track" aria-hidden="true"><div id="progressFill"></div></div>
-          <div class="words-viewport" id="wordsViewport">
-            <div class="words-track" id="wordsTrack" aria-hidden="true"></div>
-            <div class="caret" id="caret" aria-hidden="true"></div>
+          <div class="type-card" id="typeCard">
+            <div class="progress-track" aria-hidden="true"><div id="progressFill"></div></div>
+            <div class="words-viewport" id="wordsViewport">
+              <div class="words-track" id="wordsTrack" aria-hidden="true"></div>
+              <div class="caret" id="caret" aria-hidden="true"></div>
+            </div>
+            <textarea id="typingInput" aria-label="Typing area" aria-describedby="typingHint typingPrompt"
+              autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" wrap="off"
+              enterkeyhint="done"></textarea>
+            <p class="sr-only" id="typingPrompt"></p>
           </div>
-          <textarea id="typingInput" aria-label="Typing area" aria-describedby="typingHint typingPrompt"
-            autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" wrap="off"
-            enterkeyhint="done"></textarea>
-          <p class="sr-only" id="typingPrompt"></p>
         </div>
 
         <div class="practice-footer">
@@ -112,9 +125,30 @@
   <dialog id="historyDialog" aria-labelledby="historyTitle">
     <div class="dialog-body">
       <h2 id="historyTitle">Practice history</h2>
-      <p class="muted" id="historyContext"></p>
-      <p id="historyBest"></p>
-      <p id="historyEmpty">Finish a test to start tracking your progress.</p>
+      <p class="muted">Scores saved on this device.</p>
+      <div class="history-filters">
+        <label>Practice mode
+          <select id="historyMode">
+            <option value="words">Words</option>
+            <option value="paragraphs">Paragraphs</option>
+            <option value="custom">Custom Text</option>
+          </select>
+        </label>
+        <label>Duration
+          <select id="historyDuration">
+            <option value="15">15 seconds</option>
+            <option value="30">30 seconds</option>
+            <option value="60">60 seconds</option>
+            <option value="120">120 seconds</option>
+          </select>
+        </label>
+      </div>
+      <div class="history-summary" role="status">
+        <p id="historyBest"></p>
+        <p id="historyGoal"></p>
+        <p id="historyEmpty" hidden></p>
+      </div>
+      <div id="historyTrends" class="history-trends" hidden></div>
       <table id="historyTable" hidden>
         <thead><tr><th scope="col">Date</th><th scope="col">WPM</th><th scope="col">Accuracy</th></tr></thead>
         <tbody id="historyRows"></tbody>

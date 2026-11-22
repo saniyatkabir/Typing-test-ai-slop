@@ -311,6 +311,8 @@ th { color: var(--muted); }
 @media (pointer: coarse) {
   kbd { display: none; }
   .history-filters select { font-size: 1rem; }
-  main:has(.keyboard-open) { padding-bottom: 55vh; }
-  .keyboard-open .words-viewport { height: 3.7em; margin-block: 12px; }
+  .practice { padding-bottom: var(--keyboard-space, 0px); }
+  .type-card { touch-action: manipulation; cursor: text; }
+  .words-viewport { margin-block: 12px; }
+  #typingInput { bottom: auto; height: 44px; overflow: hidden; }
 }

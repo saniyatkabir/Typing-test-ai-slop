@@ -48,6 +48,7 @@
   const track = byId('wordsTrack');
   const caret = byId('caret');
   const typingPanel = input.closest('.typing-panel');
+  const typeCard = byId('typeCard');
   const customDialog = byId('customDialog');
   const historyDialog = byId('historyDialog');
   const historyMode = byId('historyMode');
@@ -62,6 +63,7 @@
   let customText = '';
   let previousParagraph = -1;
   let run;
+  let panelFitTimer;
 
   function loadHistory() {
     try {
@@ -127,7 +129,10 @@
     const frame = viewport.getBoundingClientRect();
     const top = rect.top - frame.top + viewport.scrollTop;
     const lineHeight = parseFloat(getComputedStyle(viewport).lineHeight);
-    viewport.scrollTop = Math.max(0, top - (lineHeight - rect.height) / 2);
+    const linePadding = (lineHeight - rect.height) / 2;
+    if (rect.top - linePadding < frame.top - 1 || rect.bottom + linePadding > frame.bottom + 1) {
+      viewport.scrollTop = Math.max(0, top - linePadding);
+    }
     const rtl = getComputedStyle(anchor).direction === 'rtl';
     const edge = Boolean(next) !== rtl ? rect.left : rect.right;
     caret.style.left = `${Math.max(0, edge - frame.left)}px`;
@@ -140,17 +145,29 @@
     const keyboardHeight = screen ? window.innerHeight - screen.height : 0;
     const keyboardOpen = document.activeElement === input && !run.finished &&
       window.matchMedia('(pointer: coarse)').matches && screen?.scale === 1 && keyboardHeight > 120;
-    typingPanel.classList.toggle('keyboard-open', keyboardOpen);
-    positionCaret();
-    if (!keyboardOpen) return;
-
-    const statsTop = byId('liveStats').getBoundingClientRect().top;
-    const activeLineBottom = caret.getBoundingClientRect().bottom;
-    const top = screen.offsetTop + 8;
-    const bottom = screen.offsetTop + screen.height - 12;
-    if (statsTop < top || activeLineBottom > bottom) {
-      window.scrollBy({ top: statsTop - top, behavior: 'instant' });
+    if (!keyboardOpen) {
+      typingPanel.parentElement.style.removeProperty('--keyboard-space');
+      positionCaret();
+      return;
     }
+
+    // Wait for the keyboard animation before measuring or moving the page.
+    typingPanel.parentElement.style.setProperty('--keyboard-space', `${Math.ceil(keyboardHeight)}px`);
+    positionCaret();
+    const panel = typingPanel.getBoundingClientRect();
+    const visibleTop = screen.offsetTop + 8;
+    const visibleBottom = screen.offsetTop + screen.height - 12;
+    if (panel.top < visibleTop - 2 || panel.bottom > visibleBottom + 2) {
+      const target = panel.height > visibleBottom - visibleTop || panel.top < visibleTop
+        ? panel.top - visibleTop
+        : Math.min(panel.bottom - visibleBottom, panel.top - visibleTop);
+      if (Math.abs(target) > 2) window.scrollBy({ top: target, behavior: 'instant' });
+    }
+  }
+
+  function schedulePanelFit() {
+    clearTimeout(panelFitTimer);
+    panelFitTimer = setTimeout(fitTypingPanel, 140);
   }
 
   function updateSettings() {
@@ -386,7 +403,7 @@
     recordPace(elapsed);
     run.finished = true;
     input.readOnly = true;
-    typingPanel.classList.remove('keyboard-open');
+    typingPanel.parentElement.style.removeProperty('--keyboard-space');
     updateStats(elapsed);
 
     const result = { mode, duration, wpm: wpm(elapsed), accuracy: accuracy(), date: Date.now() };
@@ -599,7 +616,10 @@
     resetTest(true);
   });
 
-  const schedulePanelFit = () => requestAnimationFrame(fitTypingPanel);
+  typeCard.addEventListener('click', (event) => {
+    if (event.target !== input && !input.readOnly) input.focus({ preventScroll: true });
+  });
+  window.addEventListener('resize', positionCaret);
   window.addEventListener('resize', schedulePanelFit);
   window.visualViewport?.addEventListener('resize', schedulePanelFit);
   input.addEventListener('focus', schedulePanelFit);
